@@ -59,6 +59,37 @@ const DraftsBoard = dynamic(() => import("@/components/drafts-board").then(mod =
 const SEOOptimizerInput = dynamic(() => import("@/components/seo-optimizer-input").then(mod => mod.SEOOptimizerInput), { ssr: false });
 const SEOOptimizerEditor = dynamic(() => import("@/components/seo-optimizer-editor").then(mod => mod.SEOOptimizerEditor), { ssr: false });
 
+function normalizeWhitespace(text: string): string {
+  return text
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function htmlToPlainText(value: string): string {
+  if (!value) return "";
+  const looksLikeHtml = /<[^>]+>/.test(value);
+  if (!looksLikeHtml) return normalizeWhitespace(value);
+
+  if (typeof window !== "undefined" && typeof DOMParser !== "undefined") {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(value, "text/html");
+
+    doc.querySelectorAll("script, style, nav, footer, header, aside, noscript").forEach((el) => el.remove());
+
+    const paragraphs = Array.from(doc.querySelectorAll("p, h1, h2, h3, h4, li"))
+      .map((el) => (el.textContent || "").trim())
+      .filter((line) => line.length > 0);
+
+    const combined = paragraphs.length > 0 ? paragraphs.join("\n\n") : (doc.body?.textContent || "");
+    return normalizeWhitespace(combined);
+  }
+
+  // Regex fallback (should rarely run in this client component).
+  return normalizeWhitespace(value.replace(/<[^>]*>/g, " "));
+}
+
 export default function SEOStrategist() {
   const { user, loading: authLoading, signIn, logOut } = useAuth();
 
@@ -107,8 +138,9 @@ export default function SEOStrategist() {
       }
 
       const { title, content } = await res.json();
+      const cleanedContent = htmlToPlainText(content || "");
       setDraftTitle(title || "");
-      setDraftContent(content || "");
+      setDraftContent(cleanedContent);
       alert("Content fetched successfully!");
     } catch (err: any) {
       alert(err.message);
@@ -318,6 +350,13 @@ export default function SEOStrategist() {
       setError("Please provide both a blog draft and a target keyword.");
       return;
     }
+
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    if (!apiKey) {
+      setError("Missing NEXT_PUBLIC_GEMINI_API_KEY. Add it to your environment and restart the app.");
+      return;
+    }
+
     setError("");
     setStep("analyzing");
 
@@ -325,20 +364,22 @@ export default function SEOStrategist() {
     const coreLinksText = links
       .map((l) => `[${l.category}] ${l.title ? l.title + " - " : ""}${l.url}`)
       .join("\n");
-    const brandVoiceText = `Brand Voice: ${brandVoice}`;
+    const contentForAnalysis = htmlToPlainText(draftContent);
 
     try {
       const ai = new GoogleGenAI({
-        apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY!,
+        apiKey,
       });
 
+      const modelName = process.env.NEXT_PUBLIC_GEMINI_MODEL || "gemini-2.5-pro";
+
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: modelName,
         contents: getAnalysisPrompt(
           targetKeyword,
           secondaryKeywords,
           brandVoice,
-          draftContent,
+          contentForAnalysis,
           coreLinksText,
         ),
         config: {
@@ -356,8 +397,14 @@ export default function SEOStrategist() {
 
       setAnalysisResult(JSON.parse(resultText));
       setStep("editor");
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "An unexpected error occurred while analyzing content.";
+      setError(errorMessage);
       setStep("input");
     }
   };
