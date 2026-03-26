@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isCollaborator() {
+      return isAuthenticated() && ('collaborators' in resource.data) && (request.auth.token.email in resource.data.collaborators);
+    }
+
+    function canAccessWebsite(websiteId) {
+      let website = get(/databases/$(database)/documents/websites/$(websiteId));
+      return website != null && (website.data.userId == request.auth.uid || (('collaborators' in website.data) && request.auth.token.email in website.data.collaborators));
+    }
+
+    function uidUnchanged() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidWebsite(data) {
+      return hasRequiredFields(['userId', 'name', 'url', 'createdAt']) &&
+             data.userId is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             isValidUrl(data.url) &&
+             (!('collaborators' in data) || (data.collaborators is list && data.collaborators.size() <= 50)) &&
+             data.createdAt is number;
+    }
+
+    function isValidLink(data) {
+      return hasRequiredFields(['userId', 'websiteId', 'url', 'category', 'createdAt']) &&
+             data.userId is string &&
+             data.websiteId is string &&
+             isValidUrl(data.url) &&
+             data.category is string && data.category.size() > 0 && data.category.size() <= 50 &&
+             (!('title' in data) || (data.title is string && data.title.size() <= 200)) &&
+             data.createdAt is number;
+    }
+
+    function isValidDraft(data) {
+      return hasRequiredFields(['userId', 'websiteId', 'title', 'content', 'createdAt', 'updatedAt']) &&
+             data.userId is string &&
+             data.websiteId is string &&
+             data.title is string && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 1000000 &&
+             (!('targetKeyword' in data) || (data.targetKeyword is string && data.targetKeyword.size() <= 200)) &&
+             (!('analysisResult' in data) || (data.analysisResult is string && data.analysisResult.size() <= 1000000)) &&
+             data.createdAt is number &&
+             data.updatedAt is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /websites/{websiteId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isCollaborator());
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidWebsite(request.resource.data);
+      allow update: if isAuthenticated() && isDocOwner() && uidNotModified() && isValidWebsite(request.resource.data);
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    match /links/{linkId} {
+      allow read: if isAuthenticated() && canAccessWebsite(resource.data.websiteId);
+      allow create: if isAuthenticated() && canAccessWebsite(request.resource.data.websiteId) && isValidLink(request.resource.data);
+      allow update: if isAuthenticated() && canAccessWebsite(resource.data.websiteId) && uidNotModified() && isValidLink(request.resource.data);
+      allow delete: if isAuthenticated() && canAccessWebsite(resource.data.websiteId);
+    }
+
+    match /drafts/{draftId} {
+      allow read: if isAuthenticated() && canAccessWebsite(resource.data.websiteId);
+      allow create: if isAuthenticated() && canAccessWebsite(request.resource.data.websiteId) && isValidDraft(request.resource.data);
+      allow update: if isAuthenticated() && canAccessWebsite(resource.data.websiteId) && uidNotModified() && isValidDraft(request.resource.data);
+      allow delete: if isAuthenticated() && canAccessWebsite(resource.data.websiteId);
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "Website": {
+      "title": "Website",
+      "description": "A website managed by the user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner UID" },
+        "name": { "type": "string", "description": "Name of the website" },
+        "url": { "type": "string", "description": "Base URL of the website" },
+        "collaborators": { "type": "array", "items": { "type": "string" }, "description": "Emails of collaborators" },
+        "createdAt": { "type": "number", "description": "Timestamp of creation" }
+      },
+      "required": ["userId", "name", "url", "createdAt"]
+    },
+    "Link": {
+      "title": "Link",
+      "description": "A core link associated with a website",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner UID" },
+        "websiteId": { "type": "string", "description": "ID of the associated website" },
+        "url": { "type": "string", "description": "The URL itself" },
+        "category": { "type": "string", "description": "Category of the link (e.g., Blog, Service, Product)" },
+        "title": { "type": "string", "description": "Title or anchor text hint for the link" },
+        "createdAt": { "type": "number", "description": "Timestamp of creation" }
+      },
+      "required": ["userId", "websiteId", "url", "category", "createdAt"]
+    },
+    "Draft": {
+      "title": "Draft",
+      "description": "A saved blog draft and its analysis",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner UID" },
+        "websiteId": { "type": "string", "description": "ID of the associated website" },
+        "title": { "type": "string", "description": "Title of the draft" },
+        "content": { "type": "string", "description": "The draft content (HTML/Rich Text)" },
+        "targetKeyword": { "type": "string", "description": "The target keyword" },
+        "analysisResult": { "type": "string", "description": "JSON stringified analysis result" },
+        "createdAt": { "type": "number", "description": "Timestamp of creation" },
+        "updatedAt": { "type": "number", "description": "Timestamp of last update" }
+      },
+      "required": ["userId", "websiteId", "title", "content", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/websites/{websiteId}": {
+      "schema": "Website",
+      "description": "Stores user websites"
+    },
+    "/links/{linkId}": {
+      "schema": "Link",
+      "description": "Stores links associated with websites"
+    },
+    "/drafts/{draftId}": {
+      "schema": "Draft",
+      "description": "Stores blog drafts"
+    }
+  }
+}
