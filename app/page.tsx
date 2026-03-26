@@ -137,8 +137,9 @@ export default function SEOStrategist() {
         throw new Error(data.error || "Failed to fetch URL");
       }
 
-      const { title, content } = await res.json();
-      const cleanedContent = htmlToPlainText(content || "");
+      const { title, content, articleContent } = await res.json();
+      const fetchedBlogText = articleContent || content || "";
+      const cleanedContent = htmlToPlainText(fetchedBlogText);
       setDraftTitle(title || "");
       setDraftContent(cleanedContent);
       alert("Content fetched successfully!");

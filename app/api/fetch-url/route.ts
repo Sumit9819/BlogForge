@@ -110,9 +110,13 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ 
-      title, 
-      content 
+    return NextResponse.json({
+      title,
+      // Frontend should use this field for editor/analyzer input.
+      content,
+      articleContent: content,
+      // Keep raw HTML available for backend workflows/debugging only.
+      rawHtml: html,
     });
   } catch (error: any) {
     console.error('Fetch URL error:', error);

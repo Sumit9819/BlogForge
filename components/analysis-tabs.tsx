@@ -885,8 +885,11 @@ export function AnalysisTabs({
                   Image Alt-Text Suggestions
                 </h3>
                 <div className="grid gap-3">
-                  {analysisResult.imageAltSuggestions.map(
-                    (item: any, idx: number) => (
+                  {(
+                    analysisResult.imageAltSuggestions ||
+                    analysisResult.imageAltText ||
+                    []
+                  ).map((item: any, idx: number) => (
                       <div
                         key={idx}
                         className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm"
@@ -894,18 +897,18 @@ export function AnalysisTabs({
                         <div className="flex items-center gap-2 mb-2">
                           <ImageIcon className="h-4 w-4 text-slate-400" />
                           <span className="text-xs font-bold text-slate-500 uppercase">
-                            Context: {item.context}
+                            Context: {item.context || item.imageDescription || "General"}
                           </span>
                         </div>
                         <p className="text-sm text-slate-800 font-medium">
-                          {item.suggestion}
+                          {item.suggestion || item.suggestedAltText}
                         </p>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="mt-2 h-7 text-[10px] text-blue-600 p-0 hover:bg-transparent hover:underline"
                           onClick={() => {
-                            navigator.clipboard.writeText(item.suggestion);
+                            navigator.clipboard.writeText(item.suggestion || item.suggestedAltText || "");
                             toast.success("Alt-text copied!");
                           }}
                         >
